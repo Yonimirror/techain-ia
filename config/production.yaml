@@ -1,0 +1,44 @@
+# Production Risk Configuration
+# Use with: python -m apps.trader_service.main --live --config config/production.yaml
+#
+# Differences vs paper (config/risk.yaml):
+#   - Tighter daily loss limit (5% vs 15%)
+#   - Consecutive losses kill switch active (5 vs 100)
+#   - Lower signal strength floor (keeps quality trades only)
+#   - Realistic slippage (10 bps vs 5 bps)
+#
+# Sizing is NOT here — it's driven by the `tier` field in experiments.db:
+#   Tier 1: 10%, Tier 2: 5%, Tier 3: 2.5%
+# Sector caps are NOT here — hardcoded in sector_caps.py:
+#   20% per asset, 35% per sector, 60% total
+
+risk:
+  # Position sizing — overridden per-strategy by tier system
+  max_position_size_pct: 5.0        # Default (Tier 2). Tier system overrides this.
+  max_total_exposure_pct: 60.0      # Matches sector cap MAX_TOTAL_PCT
+
+  # Drawdown protection
+  max_drawdown_pct: 15.0            # Kill switch at 15% drawdown
+  soft_drawdown_pct: 10.0           # Reduce sizes at 10% drawdown
+
+  # Kelly Criterion
+  kelly_fraction: 0.20              # Conservative fractional Kelly (20%)
+  kelly_max_pct: 10.0               # Hard cap: Tier 1 max
+
+  # Signal quality
+  min_signal_strength: 0.30         # Only trade strong signals
+
+  # Position limits
+  max_correlated_positions: 3       # Max same-direction positions
+  max_position_per_symbol_pct: 10.0 # Tier 1 max
+
+  # Circuit breakers — STRICT for real money
+  max_trades_per_day: 20            # Safety ceiling
+  max_daily_loss_pct: 5.0           # Kill switch at 5% daily loss
+  max_consecutive_losses: 5         # Kill switch at 5 consecutive losses
+
+  # Edge monitor — detect strategy degradation
+  edge_monitor_window: 20
+  edge_min_win_rate: 0.40
+  edge_min_profit_factor: 1.10
+  edge_min_trades_to_act: 15

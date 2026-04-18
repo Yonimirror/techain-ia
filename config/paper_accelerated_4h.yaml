@@ -1,0 +1,125 @@
+# Paper Trading Configuration — Accelerated Strategy Validation (4h timeframe for dense data)
+# Mode: Unlimited capital for rapid testing of all approved strategies
+# Deployed: 13 strategies across BTC/ETH 4h (more bars = faster validation)
+
+trading:
+  mode: "paper"
+  initial_capital: 1000000  # $1M for rapid hypothesis testing
+  capital_allocation_method: "equal"  # Equal weight per strategy
+  max_position_per_strategy_pct: 15  # Can go higher in paper
+  max_total_exposure_pct: 95  # Use capital aggressively
+
+strategies:
+  # BTC 4h — Top performers
+  - hypothesis_id: "reversion_rsi14_os25_ob60_sl5"
+    symbol: "BTC"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi7_os32_ob60_sl3"
+    symbol: "BTC"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi14_os25_ob70_sl5"
+    symbol: "BTC"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi7_os30_ob60_sl3"
+    symbol: "BTC"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi7_os35_ob60_sl5"
+    symbol: "BTC"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  # ETH 4h
+  - hypothesis_id: "reversion_rsi14_os35_ob60_sl5"
+    symbol: "ETH"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi7_os32_ob60_sl3"
+    symbol: "ETH"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi14_os25_ob60_sl5"
+    symbol: "ETH"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi7_os30_ob60_sl3"
+    symbol: "ETH"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi7_os35_ob60_sl5"
+    symbol: "ETH"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi7_os30_ob60_sl5"
+    symbol: "BTC"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi7_os35_ob60_sl3"
+    symbol: "BTC"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+  - hypothesis_id: "reversion_rsi14_os35_ob60_sl5"
+    symbol: "BTC"
+    timeframe: "4h"
+    enabled: true
+    weight: 1.0
+
+risk_engine:
+  # Relaxed limits for paper validation mode
+  max_trades_per_day: 999  # No daily trade limit in paper
+  max_total_exposure_pct: 95.0  # Use capital aggressively
+
+  # Kill switch — still active but less aggressive
+  daily_loss_limit_pct: 15.0  # 15% daily loss before kill (vs 5% in normal mode)
+  max_consecutive_losses: 10  # 10 losses before kill (vs 3 in normal mode)
+
+  # Position sizing
+  kelly_fraction: 0.25  # Full Kelly for aggressive validation
+  conviction_boost: true
+
+  # Edge monitoring
+  edge_monitor:
+    enabled: true
+    ewma_window: 20
+    min_trades_for_edge_check: 5
+    degradation_threshold: 0.4  # Flag if edge drops 40% from peak
+
+  # Correlation checking
+  max_portfolio_correlation: 0.95  # Allow high correlation in paper (validation)
+
+execution:
+  slippage_bps: 5.0  # Realistic slippage
+  fee_bps: 10.0  # Binance 0.1% taker
+  settlement_delay_minutes: 0  # Instant in paper
+
+logging:
+  level: "INFO"
+  decision_trace: true
+  detailed_fills: true
+  daily_summary: true

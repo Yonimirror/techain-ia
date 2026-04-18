@@ -1,0 +1,48 @@
+# Bollinger research — stocks con edge RSI confirmado (NVDA, AVGO, FCX)
+# Objetivo: detectar si Bollinger captura eventos distintos a RSI puro
+
+assets:
+  - ticker: NVDA
+    exchange: STOCK
+  - ticker: AVGO
+    exchange: STOCK
+  - ticker: FCX
+    exchange: STOCK
+
+timeframes:
+  - 1d
+
+years_of_data: 3
+
+backtest:
+  initial_capital: 100000
+  slippage_bps: 5.0
+  fee_bps: 10.0
+
+hypotheses:
+  trend:
+    enabled: false
+
+  reversion:
+    enabled: false
+
+  momentum:
+    enabled: false
+
+  bollinger:
+    enabled: true
+    bb_period: [15, 20, 25]
+    bb_std: [1.5, 2.0, 2.5]
+    rsi_period: [7, 14]
+    rsi_oversold: [30, 35, 40]
+    rsi_overbought: [55, 60, 65]
+    stop_loss_pcts: [3.0, 5.0]
+    enable_short: [false]
+
+filters:
+  min_trades: 8
+  wf_min_sharpe_mean: 0.3
+  wf_min_consistency: 0.6
+  param_robustness_min_score: 0.6
+  param_variation_pct: 0.10
+  param_min_sharpe: 0.0

@@ -1,0 +1,36 @@
+# Research config: Smart Money hypotheses only (RSI + EMA200 + Smart Money filter)
+#
+# In backtest: Smart Money signal = None → baseline edge = RSI + EMA200
+# In paper: SmartMoneyAggregator injects real-time context → SM filters bearish entries,
+#            scales up bullish high-conviction entries
+#
+# 2×2×2×2 = 16 hypotheses × BTC 1d = 16 experiments (fast)
+
+hypotheses:
+  trend:
+    enabled: false
+  reversion:
+    enabled: false
+  momentum:
+    enabled: false
+  bollinger:
+    enabled: false
+  smart_money:
+    enabled: true
+    rsi_periods: [7, 14]
+    oversold: [30, 35]
+    overbought: [60, 65]
+    stop_loss_pcts: [3.0, 5.0]
+
+backtest:
+  initial_capital: 100000
+  slippage_bps: 5.0
+  fee_bps: 10.0
+
+filters:
+  min_trades: 10
+  wf_min_sharpe_mean: 0.2
+  wf_min_consistency: 0.6
+  param_robustness_min_score: 0.6
+  param_variation_pct: 0.10
+  param_min_sharpe: 0.0

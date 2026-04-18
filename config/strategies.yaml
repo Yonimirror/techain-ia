@@ -1,0 +1,36 @@
+# Strategy Configuration
+# Each strategy has a unique ID, enabled flag, and parameters.
+
+strategies:
+  - id: ema_crossover_v1
+    enabled: true
+    class: core.strategies.ema_crossover.EMACrossoverStrategy
+    symbols:
+      - ticker: AAPL
+        exchange: NASDAQ
+      - ticker: MSFT
+        exchange: NASDAQ
+      - ticker: BTC
+        exchange: CRYPTO
+    timeframe: 1h
+    parameters:
+      fast_period: 9
+      slow_period: 21
+      signal_period: 5
+      min_strength_threshold: 0.3
+
+  - id: rsi_mean_reversion_v1
+    enabled: true
+    class: core.strategies.rsi_mean_reversion.RSIMeanReversionStrategy
+    symbols:
+      - ticker: AAPL
+        exchange: NASDAQ
+      - ticker: SPY
+        exchange: NYSE
+    timeframe: 4h
+    parameters:
+      rsi_period: 14
+      oversold_threshold: 30.0
+      overbought_threshold: 70.0
+      extreme_oversold: 20.0
+      extreme_overbought: 80.0

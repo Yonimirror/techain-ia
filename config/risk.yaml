@@ -1,0 +1,26 @@
+# Risk Engine Configuration
+# ALL parameters externalized — no hardcoded values in code.
+
+risk:
+  # Capital allocation — sized for €100 account
+  max_position_size_pct: 20.0       # €20 per trade with €100
+  max_total_exposure_pct: 60.0      # Max 3 positions simultáneas de 20%
+
+  # Drawdown protection
+  max_drawdown_pct: 20.0            # Kill switch at €80 (lose €20 max)
+  soft_drawdown_pct: 12.0           # Start reducing sizes at €88
+
+  # Kelly Criterion
+  kelly_fraction: 0.25              # Fractional Kelly (25% of full Kelly)
+  kelly_max_pct: 20.0               # Hard cap matches position size
+
+  # Signal quality filters
+  min_signal_strength: 0.25         # Más permisivo en paper para capturar más señales
+
+  # Position limits
+  max_correlated_positions: 3       # Max same-direction positions simultaneously
+  max_position_per_symbol_pct: 20.0 # Max % of equity per symbol
+
+  # Daily session limits
+  max_trades_per_day: 9999          # Sin límite en paper (máximo conocimiento)
+  max_daily_loss_pct: 15.0          # Relajado para paper (vs 5% en producción)

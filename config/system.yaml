@@ -1,0 +1,40 @@
+# System Configuration
+
+system:
+  mode: paper                  # paper | live | backtest
+  initial_capital: 100000.0
+  currency: USD
+
+data:
+  provider: csv                # csv | alpaca | binance
+  csv_path: data/historical/
+
+broker:
+  paper:
+    slippage_bps: 5.0
+    fee_bps: 10.0
+  alpaca:
+    base_url: https://paper-api.alpaca.markets  # use paper URL for testing
+    api_key: ${ALPACA_API_KEY}
+    secret_key: ${ALPACA_SECRET_KEY}
+
+observability:
+  log_level: INFO
+  json_logs: true
+  log_file: data/logs/system.log
+  metrics_port: 9090           # Prometheus metrics port
+  decision_trace_file: data/logs/decisions.jsonl
+
+backtest:
+  initial_capital: 100000.0
+  slippage_bps: 5.0
+  fee_bps: 10.0
+  risk_free_rate: 0.05
+  walk_forward:
+    enabled: true
+    is_ratio: 0.7
+    n_splits: 5
+  monte_carlo:
+    enabled: true
+    n_simulations: 1000
+    seed: 42

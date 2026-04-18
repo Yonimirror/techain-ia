@@ -1,0 +1,25 @@
+Introducción a los Sistemas RAG (Retrieval-Augmented Generation)
+
+Un sistema RAG combina dos componentes fundamentales: un motor de recuperación de información y un modelo de lenguaje generativo. La idea central es que, en lugar de depender exclusivamente del conocimiento parametrizado del modelo durante el entrenamiento, el sistema puede acceder a una base de conocimiento externa en tiempo de inferencia.
+
+Arquitectura de un sistema RAG
+
+La arquitectura básica de RAG consta de tres fases principales:
+
+1. Ingesta (Indexing): Los documentos fuente se dividen en fragmentos (chunks) de tamaño configurable. Cada fragmento se convierte en un vector de alta dimensión mediante un modelo de embeddings. Estos vectores se almacenan en una base de datos vectorial como FAISS, Pinecone o Weaviate.
+
+2. Recuperación (Retrieval): Cuando el usuario hace una pregunta, esta se vectoriza con el mismo modelo de embeddings. El sistema busca los k fragmentos más similares en el espacio vectorial mediante similitud coseno o producto interior. Opcionalmente, se aplica un re-ranking para mejorar la relevancia.
+
+3. Generación (Generation): Los fragmentos recuperados se concatenan como contexto y se envían junto con la pregunta al modelo de lenguaje. El LLM genera una respuesta fundamentada en ese contexto específico, reduciendo las alucinaciones.
+
+Ventajas del enfoque RAG
+
+Los sistemas RAG ofrecen ventajas significativas frente al fine-tuning tradicional. En primer lugar, permiten actualizar la base de conocimiento sin re-entrenar el modelo, simplemente añadiendo nuevos documentos al índice vectorial. En segundo lugar, son más económicos: indexar documentos con embeddings cuesta centavos por millón de tokens, mientras que el fine-tuning requiere miles de dólares para modelos grandes. En tercer lugar, ofrecen trazabilidad: el sistema puede citar exactamente qué fragmento utilizó para generar cada parte de la respuesta.
+
+Métricas de evaluación
+
+Los sistemas RAG se evalúan principalmente en dos dimensiones: la calidad de la recuperación (precision@k, recall@k, MRR) y la calidad de la generación (fidelidad al contexto, relevancia, coherencia). Herramientas como RAGAS permiten evaluar automáticamente ambas dimensiones en pipeline.
+
+Consideraciones de producción
+
+En producción, los sistemas RAG enfrentan desafíos de escalabilidad. FAISS funciona excelentemente para corpus de hasta 10 millones de documentos en una sola máquina. Para escalas mayores, bases de datos vectoriales distribuidas como Pinecone o Qdrant son más apropiadas. La latencia de inferencia también es crítica: los embeddings deben generarse en milisegundos, y la búsqueda vectorial debe completarse en menos de 100ms para una experiencia de usuario fluida.

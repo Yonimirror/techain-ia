@@ -1,0 +1,44 @@
+# Environment & secrets
+.env
+.env.local
+*.pem
+credentials*
+config/secrets.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Data — trading state, research DB, historical cache
+data/logs/
+data/paper_state/
+data/research/*.db
+data/research/*.db-journal
+data/rebalancer/
+data/historical/
+
+# Logs
+logs/
+
+# Runtime data at root level
+data/research.db
+data/research.db-journal
+
+# Claude Code local state
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp

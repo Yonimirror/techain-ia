@@ -1,0 +1,43 @@
+# Research SOL 1d — Buscar estrategias RSI para SOL
+# SOL es más volátil que BTC/ETH → más señales diarias
+
+assets:
+  - ticker: SOL
+    exchange: CRYPTO
+
+timeframes:
+  - 1d
+
+years_of_data: 3
+
+backtest:
+  initial_capital: 100000
+  slippage_bps: 5.0
+  fee_bps: 10.0
+
+hypotheses:
+  trend:
+    enabled: false
+
+  reversion:
+    enabled: true
+    rsi_periods: [7, 14]
+    oversold: [25, 28, 30, 32, 35]
+    overbought: [60, 65, 70]
+    stop_loss_pcts: [3.0, 5.0, 7.0]
+    enable_short: [false]
+    ema_trend_filter: [false]   # Sin filtro primero
+
+  momentum:
+    enabled: false
+
+  bollinger:
+    enabled: false
+
+filters:
+  min_trades: 10
+  wf_min_sharpe_mean: 0.2
+  wf_min_consistency: 0.6
+  param_robustness_min_score: 0.6
+  param_variation_pct: 0.10
+  param_min_sharpe: 0.0

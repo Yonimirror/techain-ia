@@ -1,0 +1,59 @@
+# Research ETFs — acceso a mercados via fondos cotizados
+# Objetivo: validar edge RSI mean reversion en ETFs de índices, sectores y commodities
+# Candidatos seleccionados por perfil V-shape potencial y correlación baja entre sí
+
+assets:
+  - ticker: QQQ
+    exchange: NYSE
+  - ticker: SMH
+    exchange: NYSE
+  - ticker: GLD
+    exchange: NYSE
+  - ticker: XLE
+    exchange: NYSE
+  - ticker: TLT
+    exchange: NYSE
+
+timeframes:
+  - 1d
+
+years_of_data: 5
+
+backtest:
+  initial_capital: 100000
+  slippage_bps: 5.0
+  fee_bps: 10.0
+
+hypotheses:
+  trend:
+    enabled: false
+
+  reversion:
+    enabled: true
+    rsi_periods: [7, 14]
+    oversold: [25, 30, 35]
+    overbought: [60, 65, 70]
+    stop_loss_pcts: [3.0, 5.0]
+    enable_short: [false]
+    ema_trend_filter: [false, true]
+
+  momentum:
+    enabled: false
+
+  bollinger:
+    enabled: true
+    bb_period: [15, 20, 25]
+    bb_std: [1.5, 2.0, 2.5]
+    rsi_period: [7, 14]
+    rsi_oversold: [30, 35, 40]
+    rsi_overbought: [55, 60, 65]
+    stop_loss_pcts: [3.0, 5.0]
+    enable_short: [false]
+
+filters:
+  min_trades: 8
+  wf_min_sharpe_mean: 0.3
+  wf_min_consistency: 0.6
+  param_robustness_min_score: 0.6
+  param_variation_pct: 0.10
+  param_min_sharpe: 0.0
