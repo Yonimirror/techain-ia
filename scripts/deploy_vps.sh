@@ -95,13 +95,11 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=oneshot
 User=$SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
 EnvironmentFile=$INSTALL_DIR/.env
 ExecStart=$INSTALL_DIR/.venv/bin/python -m apps.trader_service.main --top 6 --capital 100000
-Restart=always
-RestartSec=60
 StandardOutput=append:$LOG_DIR/paper_trader.log
 StandardError=append:$LOG_DIR/paper_trader.log
 
