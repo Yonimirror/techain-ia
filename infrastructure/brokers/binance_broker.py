@@ -37,6 +37,10 @@ _SYMBOL_MAP = {
     "ETH": "ETHUSDT",
     "BNB": "BNBUSDT",
     "SOL": "SOLUSDT",
+    # EUR pairs — for accounts funded in EUR (no USDT conversion needed)
+    "BTC_EUR": "BTCEUR",
+    "ETH_EUR": "ETHEUR",
+    "SOL_EUR": "SOLEUR",
 }
 
 
@@ -136,12 +140,14 @@ class BinanceBroker(IBroker):
         return False
 
     async def get_account_balance(self) -> Decimal:
-        """Return free USDT balance."""
+        """Return free balance — USDT preferred, EUR fallback."""
         try:
             account = self._client.get_account()
-            for asset in account.get("balances", []):
-                if asset["asset"] == "USDT":
-                    return Decimal(asset["free"])
+            balances = {a["asset"]: Decimal(a["free"]) for a in account.get("balances", [])}
+            if balances.get("USDT", Decimal("0")) > 0:
+                return balances["USDT"]
+            if balances.get("EUR", Decimal("0")) > 0:
+                return balances["EUR"]
             return Decimal("0")
         except Exception as e:
             logger.error("Failed to fetch account balance: %s", e)
