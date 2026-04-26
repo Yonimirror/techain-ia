@@ -339,123 +339,102 @@ async def run_bot() -> None:
                             now_utc = datetime.now(timezone.utc)
                             hora_utc = now_utc.strftime("%H:%M UTC")
 
-                            # Próxima ejecución (cada 4h en cierres de vela Binance)
-                            candle_closes = [0, 4, 8, 12, 16, 20]
-                            next_close = next((h for h in candle_closes if h > now_utc.hour), candle_closes[0])
-                            mins_left = ((next_close - now_utc.hour) * 60 - now_utc.minute) % (24 * 60)
-                            trading_momento = f"⏰ Próxima revisión: {next_close:02d}:01 UTC (en {mins_left}min)"
+                            CRYPTO = {'BTC', 'ETH', 'SOL', 'BNB'}
+                            IBKR_SYMS = {'SPY', 'QQQ', 'GLD', 'TLT', 'XLF', 'XLE', 'SMH', 'XLI',
+                                         'NVDA', 'AVGO', 'MSFT', 'FCX', 'TSM', 'AAPL'}
 
-                            # Clasificar por mercado
-                            CRYPTO  = {'BTC','ETH','SOL','BNB','AVAX','DOT'}
-                            ETFS    = {'SPY','QQQ','GLD','TLT','XLF','XLE'}
-                            FOREX_S = {'EURUSD=X','GBPUSD=X','USDJPY=X'}
-                            FUTURES = {'ES=F','NQ=F','CL=F','GC=F'}
+                            # ── Saldos reales ──────────────────────────────────
+                            binance_balance = None
+                            ibkr_balance = None
+                            try:
+                                import os
+                                from binance.client import Client as BClient
+                                bc = BClient(os.environ.get("BINANCE_API_KEY", ""),
+                                             os.environ.get("BINANCE_SECRET_KEY", ""))
+                                acc = bc.get_account()
+                                bals = {b["asset"]: float(b["free"]) for b in acc["balances"]}
+                                binance_balance = bals.get("USDT", 0) or bals.get("EUR", 0)
+                            except Exception:
+                                pass
 
-                            def market_label(sym):
-                                if sym in CRYPTO:  return "🪙 Crypto"
-                                if sym in ETFS:    return "📈 ETF"
-                                if sym in FOREX_S: return "💱 Forex"
-                                if sym in FUTURES: return "📦 Futuros"
-                                return "🏢 Acción"
+                            try:
+                                from ib_insync import IB, util
+                                util.patchAsyncio()
+                                ib = IB()
+                                ib.connect("127.0.0.1", int(os.environ.get("IBKR_PORT", "7498")),
+                                           clientId=10, timeout=10)
+                                for a in ib.accountSummary():
+                                    if a.tag == "NetLiquidation" and a.currency in ("USD", "EUR"):
+                                        ibkr_balance = float(a.value)
+                                ib.disconnect()
+                            except Exception:
+                                pass
 
-                            lines = [
-                                f"📊 *Estado del sistema* — {hora_utc}",
-                                f"{trading_momento}\n",
-                                "─────────────────────────",
-                            ]
+                            # ── Cabecera ───────────────────────────────────────
+                            lines = [f"📊 *Estado del sistema* — {hora_utc}\n"]
 
-                            seen = set()
+                            # Saldos reales
+                            if binance_balance is not None:
+                                lines.append(f"🟡 *Binance LIVE* — {binance_balance:.2f} EUR/USDT")
+                            if ibkr_balance is not None:
+                                lines.append(f"🔵 *IBKR paper* — {ibkr_balance:,.0f} USD")
+                            lines.append("─────────────────────────")
+
+                            # ── Estrategias por broker ─────────────────────────
+                            binance_lines = []
+                            ibkr_lines = []
                             total_trades = 0
-                            best_wr = 0.0
-                            best_ret = -999.0
-                            by_market: dict[str, list[str]] = {}
 
-                            for row in approved[:15]:
+                            for row in approved[:30]:
                                 h_id = row["hypothesis_id"]
                                 sym  = row["symbol"]
                                 tf   = row["timeframe"]
                                 key  = f"{h_id}_{sym}_{tf}"
-                                if key in seen:
-                                    continue
-                                seen.add(key)
-
-                                mkt = market_label(sym)
-
-                                # Parse strategy name
-                                parts  = h_id.split("_")
-                                family = parts[0]
-                                rsi_p  = next((p.replace("rsi","") for p in parts if p.startswith("rsi") and p[3:].isdigit()), "14")
-                                os_v   = next((p.replace("os","") for p in parts if p.startswith("os")), "30")
-                                ob_v   = next((p.replace("ob","") for p in parts if p.startswith("ob")), "60")
-                                sl_v   = next((p.replace("sl","") for p in parts if p.startswith("sl")), "5")
-                                ema_on = "ema200" in h_id
-                                tf_txt = "cada 4h" if tf == "4h" else ("cada hora" if tf == "1h" else "diario")
-                                ema_txt = " + tendencia EMA200" if ema_on else ""
-
-                                if family == "bollinger":
-                                    bb_p = next((p.replace("bb","") for p in parts if p.startswith("bb") and p[2:].isdigit()), "20")
-                                    descripcion = (
-                                        f"Compra {sym} cuando el precio toca la banda inferior de Bollinger({bb_p}), "
-                                        f"vende en banda superior. RSI confirma. Stop {sl_v}%. Revisa {tf_txt}."
-                                    )
-                                else:
-                                    descripcion = (
-                                        f"Compra {sym} cuando RSI({rsi_p}) cae bajo {os_v} (pánico), "
-                                        f"vende cuando sube sobre {ob_v} (recuperación). "
-                                        f"Stop {sl_v}%. Revisa {tf_txt}{ema_txt}."
-                                    )
 
                                 saved = load_state(key)
-                                if saved:
-                                    port    = rebuild_portfolio(saved)
-                                    summary = port.summary()
-                                    trades  = summary.get("trades", 0)
-                                    wr      = summary.get("win_rate", 0.0)
-                                    cap     = float(saved.initial_capital)
-                                    equity  = float(saved.cash)
-                                    ret_pct = (equity - cap) / cap * 100
-                                    ks      = saved.risk_state.get("kill_switch_active", False) if saved.risk_state else False
-                                    pf      = summary.get("profit_factor", 0.0)
+                                if not saved:
+                                    continue
+                                port    = rebuild_portfolio(saved)
+                                s       = port.summary()
+                                trades  = s.get("trades", 0)
+                                if trades == 0:
+                                    continue
+                                wr      = s.get("win_rate", 0.0)
+                                pf      = s.get("profit_factor", 0.0)
+                                cap     = float(saved.initial_capital)
+                                equity  = float(saved.cash)
+                                ret_pct = (equity - cap) / cap * 100
+                                ks      = saved.risk_state.get("kill_switch_active", False) if saved.risk_state else False
+                                total_trades += trades
 
-                                    total_trades += trades
-                                    if wr > best_wr: best_wr = wr
-                                    if ret_pct > best_ret: best_ret = ret_pct
+                                ks_icon  = "🔴" if ks else "🟢"
+                                wr_icon  = "✅" if wr >= 60 else ("⚠️" if wr >= 45 else "❌")
+                                ret_icon = "📈" if ret_pct >= 0 else "📉"
 
-                                    ks_icon  = "🔴 PAUSADA" if ks else "🟢"
-                                    wr_icon  = "✅" if wr >= 60 else ("⚠️" if wr >= 45 else "❌")
-                                    ret_icon = "📈" if ret_pct >= 0 else "📉"
-                                    meta_pct = min(int(trades / 100 * 100), 100)
-                                    bar      = '▓' * (meta_pct // 10) + '░' * (10 - meta_pct // 10)
+                                entry = (
+                                    f"{ks_icon} *{sym}* `{h_id[:28]}` {tf}\n"
+                                    f"   {wr_icon} WR: {wr:.0f}% | {ret_icon} {ret_pct:+.1f}% | "
+                                    f"Trades: {trades} | PF: {pf:.2f}"
+                                )
 
-                                    entry = (
-                                        f"\n{ks_icon} {mkt} *{sym} {tf}*\n"
-                                        f"_{descripcion}_\n\n"
-                                        f"{wr_icon} Aciertos: *{wr:.0f}%* de {trades} ops\n"
-                                        f"{ret_icon} Retorno: *{ret_pct:+.1f}%* | PF: {pf:.2f} | Sharpe: {row['wf_sharpe_mean']:.2f}\n"
-                                        f"🎯 {bar} {trades}/100"
-                                    )
+                                if sym in CRYPTO:
+                                    binance_lines.append(entry)
                                 else:
-                                    entry = (
-                                        f"\n⚪ {mkt} *{sym} {tf}* — sin datos aún\n"
-                                        f"_{descripcion}_\n"
-                                        f"Sharpe: {row['wf_sharpe_mean']:.2f}"
-                                    )
+                                    ibkr_lines.append(entry)
 
-                                by_market.setdefault(mkt, []).append(entry)
+                            if binance_lines:
+                                lines.append("\n🟡 *BINANCE — LIVE*")
+                                lines.extend(binance_lines)
 
-                            # Output por mercado
-                            for mkt, entries in by_market.items():
-                                lines.append(f"\n{'═'*20}\n{mkt}\n{'═'*20}")
-                                lines.extend(entries)
+                            if ibkr_lines:
+                                lines.append("\n🔵 *IBKR — PAPER*")
+                                lines.extend(ibkr_lines)
 
                             lines.append(
                                 f"\n─────────────────────────\n"
-                                f"📦 Operaciones totales: *{total_trades}*\n"
-                                f"🏆 Mejor WR: *{best_wr:.0f}%* | Mejor retorno: *{best_ret:+.1f}%*\n"
-                                f"💡 Meta: 100 trades por estrategia → live trading"
+                                f"📦 Trades totales: *{total_trades}*"
                             )
 
-                            # Send in chunks if too long (Telegram limit 4096 chars)
                             msg = "\n".join(lines)
                             if len(msg) > 4000:
                                 mid = len(lines) // 2
