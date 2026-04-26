@@ -12,6 +12,29 @@ from core.execution_engine.paper_broker import PaperBroker
 logger = logging.getLogger(__name__)
 
 
+async def _notify_trade(order: Order, filled_price: Price | None = None) -> None:
+    """Fire-and-forget Telegram alert for live fills."""
+    try:
+        from apps.telegram_bot.bot import TelegramNotifier
+        notifier = TelegramNotifier()
+        if not notifier.enabled:
+            return
+        side = "COMPRA" if order.side == OrderSide.BUY else "VENTA"
+        price_str = str(filled_price.value) if filled_price else "market"
+        pnl = order.metadata.get("pnl_pct", "")
+        pnl_str = f"{pnl:+.2f}%" if pnl else ""
+        await notifier.send_trade_alert(
+            action="ORDEN EJECUTADA",
+            symbol=order.symbol.ticker,
+            side=side,
+            qty=str(order.quantity.value),
+            price=price_str,
+            pnl=pnl_str,
+        )
+    except Exception as exc:
+        logger.debug("Telegram trade alert failed: %s", exc)
+
+
 class ExecutionEngine(IExecutionEngine):
     """
     Execution engine: bridges the decision layer to the broker.
@@ -45,6 +68,8 @@ class ExecutionEngine(IExecutionEngine):
         if isinstance(self._broker, PaperBroker):
             return await self._simulate_paper_fill(order)
 
+        # Live fill — notify via Telegram
+        await _notify_trade(order)
         return OrderResult(order=order, success=True, broker_order_id=broker_id)
 
     async def _simulate_paper_fill(self, order: Order) -> OrderResult:
