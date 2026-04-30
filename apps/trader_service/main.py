@@ -197,6 +197,7 @@ def run(
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     reset: bool = typer.Option(False, "--reset", help="Reset paper trading state (start fresh)"),
     live: bool = typer.Option(False, "--live", help="Modo LIVE: ejecuta ordenes reales (Binance crypto, IBKR equities/ETFs)"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Saltar confirmación interactiva (para systemd/CI)"),
     risk_config: str = typer.Option("config/risk.yaml", "--risk-config", help="Risk config YAML (use config/production.yaml for live)"),
 ) -> None:
     configure_logging(LogLevel.DEBUG if verbose else LogLevel.INFO, json_output=False)
@@ -208,10 +209,11 @@ def run(
         typer.echo("  Equities/ETFs: IBKR TWS/Gateway (puerto 7497 paper / 7496 live)")
         typer.echo(f"  Capital: ${capital:,.2f}")
         typer.echo("!" * 60)
-        confirmed = typer.confirm("\n¿Confirmas que quieres operar con dinero real?", default=False)
-        if not confirmed:
-            typer.echo("Cancelado. Usa sin --live para paper trading.")
-            raise typer.Exit(0)
+        if not yes:
+            confirmed = typer.confirm("\n¿Confirmas que quieres operar con dinero real?", default=False)
+            if not confirmed:
+                typer.echo("Cancelado. Usa sin --live para paper trading.")
+                raise typer.Exit(0)
 
     # ── Cargar estrategias aprobadas ─────────────────────────────────────────
     approved = _load_approved_strategies(top)
