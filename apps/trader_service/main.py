@@ -337,10 +337,16 @@ def run(
             portfolio_engine=portfolio,
         )
 
-        from infrastructure.data_providers import BinanceDataProvider
-        provider = BinanceDataProvider()
-        sym = Symbol.of(symbol_ticker, "CRYPTO" if symbol_ticker in {"BTC", "ETH", "BNB", "SOL"} else "NYSE")
+        _CRYPTO = {"BTC", "ETH", "BNB", "SOL"}
+        sym = Symbol.of(symbol_ticker, "CRYPTO" if symbol_ticker in _CRYPTO else "NYSE")
         tf = Timeframe(timeframe_str)
+
+        if symbol_ticker in _CRYPTO:
+            from infrastructure.data_providers import BinanceDataProvider
+            provider = BinanceDataProvider()
+        else:
+            from infrastructure.data_providers import YFinanceDataProvider
+            provider = YFinanceDataProvider()
 
         lookback = 1000 if timeframe_str in ("4h", "1h") else MAX_LOOKBACK
         data = await provider.get_latest_bars(sym, tf, count=lookback)
