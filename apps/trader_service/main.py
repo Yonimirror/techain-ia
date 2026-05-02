@@ -445,6 +445,37 @@ def run(
         equity = float(portfolio.state.total_equity())
         return_pct = (equity - float(initial_capital)) / float(initial_capital) * 100
         drawdown = float(portfolio.state.drawdown())
+
+        # Current RSI for the asset (last bar)
+        current_rsi: float | None = None
+        try:
+            from core.strategies.indicators import rsi as compute_rsi
+            closes = [float(b.close.value) for b in bars[-50:]]
+            rsi_series = compute_rsi(closes, period=14)
+            current_rsi = rsi_series[-1] if rsi_series else None
+        except Exception:
+            pass
+
+        # Open position info (entry price, qty, strategy hint)
+        open_position: dict | None = None
+        if portfolio.open_trades:
+            trade = next(iter(portfolio.open_trades.values()))
+            cfg = getattr(strategy, "config", None)
+            oversold = getattr(cfg, "oversold_threshold", None) or getattr(cfg, "rsi_oversold", None)
+            stop_pct = getattr(cfg, "stop_loss_pct", None)
+            entry = float(trade.entry_price.value)
+            open_position = {
+                "symbol": symbol_ticker,
+                "timeframe": timeframe_str,
+                "broker": "binance" if symbol_ticker in {"BTC", "ETH", "BNB", "SOL"} else "ibkr",
+                "entry_price": entry,
+                "quantity": float(trade.quantity.value),
+                "strategy_hint": meta.get("hypothesis_id", strategy.strategy_id),
+                "oversold_threshold": oversold,
+                "stop_loss_price": round(entry * (1 - stop_pct / 100), 2) if stop_pct else None,
+                "current_price": float(bars[-1].close.value),
+            }
+
         return {
             "hypothesis_id": meta.get("hypothesis_id", strategy.strategy_id),
             "symbol": symbol_ticker,
@@ -457,6 +488,9 @@ def run(
             "max_drawdown_pct": drawdown,
             "kill_switch": risk_engine.kill_switch_active,
             "kill_switch_reason": risk_engine._kill_switch_reason,
+            "current_rsi": current_rsi,
+            "open_position": open_position,
+            "broker": "binance" if symbol_ticker in {"BTC", "ETH", "BNB", "SOL"} else "ibkr",
         }
 
     async def _trading_loop() -> None:
@@ -516,8 +550,32 @@ def run(
         notifier = TelegramNotifier()
         if notifier.enabled and results:
             try:
-                await notifier.send_daily_summary(results)
-                # Alert on any kill switch activations
+                # Collect open positions and RSI status per symbol
+                seen_symbols: set[str] = set()
+                binance_positions: list[dict] = []
+                ibkr_positions: list[dict] = []
+                rsi_status: dict[str, float | None] = {}
+
+                for r in results:
+                    sym = r["symbol"]
+                    rsi = r.get("current_rsi")
+                    # Keep best (lowest) RSI per symbol for "why no position"
+                    if sym not in rsi_status or (rsi is not None and (rsi_status[sym] is None or rsi < rsi_status[sym])):
+                        rsi_status[sym] = rsi
+
+                    pos = r.get("open_position")
+                    if pos and sym not in seen_symbols:
+                        seen_symbols.add(sym)
+                        if r["broker"] == "binance":
+                            binance_positions.append(pos)
+                        else:
+                            ibkr_positions.append(pos)
+
+                await notifier.send_positions_summary(
+                    binance_positions=binance_positions,
+                    ibkr_positions=ibkr_positions,
+                    rsi_status=rsi_status,
+                )
                 for r in results:
                     if r.get("kill_switch"):
                         await notifier.send_kill_switch_alert(

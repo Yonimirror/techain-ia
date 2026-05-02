@@ -101,7 +101,86 @@ class TelegramNotifier:
     async def send_kill_switch_alert(self, reason: str) -> bool:
         return await self.send(f"🚨 *KILL SWITCH ACTIVATED*\n{reason}")
 
+    async def send_positions_summary(
+        self,
+        binance_positions: list[dict],
+        ibkr_positions: list[dict],
+        rsi_status: dict,
+    ) -> bool:
+        from datetime import date
+        lines = [f"📊 *Informe diario — {date.today().strftime('%d %b %Y')}*\n"]
+
+        # ── BINANCE LIVE ────────────────────────────────────────────────
+        lines.append("🟡 *BINANCE — LIVE*")
+        if binance_positions:
+            for p in binance_positions:
+                entry = p["entry_price"]
+                current = p["current_price"]
+                qty = p["quantity"]
+                pnl_eur = (current - entry) * qty
+                pnl_pct = (current - entry) / entry * 100
+                sign = "+" if pnl_eur >= 0 else ""
+                arrow = "📈" if pnl_eur >= 0 else "📉"
+                oversold = p.get("oversold_threshold")
+                stop = p.get("stop_loss_price")
+                reason = f"RSI cayó por debajo de {oversold} (zona de pánico)" if oversold else "señal de entrada activada"
+                stop_str = f" | Stop: {stop:,.0f} EUR" if stop else ""
+                lines.append(
+                    f"{arrow} *{p['symbol']}* — posición abierta\n"
+                    f"  Entrada: {entry:,.2f} EUR | Actual: {current:,.2f} EUR\n"
+                    f"  P&L: `{sign}{pnl_eur:.2f} EUR ({sign}{pnl_pct:.2f}%)`{stop_str}\n"
+                    f"  _Motivo: {reason}_"
+                )
+        else:
+            # Show why no position for crypto assets
+            crypto = {s: v for s, v in rsi_status.items() if s in {"BTC", "ETH", "SOL", "BNB"}}
+            if crypto:
+                lines.append("Sin posiciones abiertas")
+                for sym, rsi in sorted(crypto.items()):
+                    rsi_str = f"RSI {rsi:.0f}" if rsi else "RSI desconocido"
+                    lines.append(f"  • {sym}: {rsi_str} — esperando caída a zona <35")
+            else:
+                lines.append("Sin posiciones abiertas")
+
+        lines.append("")
+
+        # ── IBKR PAPER ──────────────────────────────────────────────────
+        lines.append("🔵 *IBKR — PAPER*")
+        if ibkr_positions:
+            for p in ibkr_positions:
+                entry = p["entry_price"]
+                current = p["current_price"]
+                qty = p["quantity"]
+                pnl = (current - entry) * qty
+                pnl_pct = (current - entry) / entry * 100
+                sign = "+" if pnl >= 0 else ""
+                arrow = "📈" if pnl >= 0 else "📉"
+                oversold = p.get("oversold_threshold")
+                stop = p.get("stop_loss_price")
+                reason = f"RSI cayó por debajo de {oversold}" if oversold else "señal de entrada activada"
+                stop_str = f" | Stop: {stop:,.2f} USD" if stop else ""
+                lines.append(
+                    f"{arrow} *{p['symbol']}* ({p['timeframe']}) — posición abierta\n"
+                    f"  Entrada: {entry:,.2f} | Actual: {current:,.2f}\n"
+                    f"  P&L: `{sign}{pnl:.2f} ({sign}{pnl_pct:.2f}%)`{stop_str}\n"
+                    f"  _Motivo: {reason}_"
+                )
+        else:
+            equities = {s: v for s, v in rsi_status.items() if s not in {"BTC", "ETH", "SOL", "BNB"}}
+            if equities:
+                lines.append("Sin posiciones abiertas (modo paper)")
+                for sym, rsi in sorted(equities.items()):
+                    rsi_str = f"RSI {rsi:.0f}" if rsi else "RSI —"
+                    lines.append(f"  • {sym}: {rsi_str}")
+            else:
+                lines.append("Sin posiciones abiertas (modo paper)")
+
+        lines.append("")
+        lines.append("_/estrategias para ver todas las estrategias activas_")
+        return await self.send("\n".join(lines))
+
     async def send_daily_summary(self, results: list[dict]) -> bool:
+        """Legacy — kept for compatibility. Use send_positions_summary() instead."""
         if not results:
             return await self.send("📊 *Daily Summary*\nNo strategies ran today.")
         lines = ["📊 *Daily Summary*\n"]
@@ -502,13 +581,52 @@ async def run_bot() -> None:
 
                         await notifier.send("\n".join(lines))
 
+                    elif text.startswith("/estrategias"):
+                        repo = ResearchRepository()
+                        approved = repo.get_approved()
+                        if not approved:
+                            await notifier.send("No hay estrategias aprobadas.")
+                        else:
+                            from core.portfolio_engine.persistence import load_state
+                            lines = [f"📋 *Estrategias activas ({len(approved)})*\n"]
+                            CRYPTO = {"BTC", "ETH", "SOL", "BNB"}
+                            crypto_strats = [(s, sym, tf) for s, sym, tf in approved if sym in CRYPTO]
+                            equity_strats = [(s, sym, tf) for s, sym, tf in approved if sym not in CRYPTO]
+                            if crypto_strats:
+                                lines.append("🟡 *BINANCE — Crypto*")
+                                for strat, sym, tf in crypto_strats:
+                                    meta = strat.metadata if hasattr(strat, "metadata") else {}
+                                    hid = meta.get("hypothesis_id", strat.strategy_id)
+                                    session_id = f"{hid}_{sym}_{tf}"
+                                    state = load_state(session_id)
+                                    has_pos = "🔵" if (state and state.positions) else "⚪"
+                                    lines.append(f"  {has_pos} `{hid}` | {sym} {tf}")
+                            if equity_strats:
+                                lines.append("\n🔵 *IBKR — Equities/ETFs*")
+                                for strat, sym, tf in equity_strats:
+                                    meta = strat.metadata if hasattr(strat, "metadata") else {}
+                                    hid = meta.get("hypothesis_id", strat.strategy_id)
+                                    session_id = f"{hid}_{sym}_{tf}"
+                                    state = load_state(session_id)
+                                    has_pos = "🔵" if (state and state.positions) else "⚪"
+                                    lines.append(f"  {has_pos} `{hid[:35]}` | {sym} {tf}")
+                            lines.append("\n🔵 = posición abierta | ⚪ = en espera")
+                            msg = "\n".join(lines)
+                            if len(msg) > 4000:
+                                mid = len(lines) // 2
+                                await notifier.send("\n".join(lines[:mid]))
+                                await notifier.send("\n".join(lines[mid:]))
+                            else:
+                                await notifier.send(msg)
+
                     elif text.startswith("/help"):
                         await notifier.send(
                             "🤖 *Techain-IA Bot*\n\n"
-                            "/test — Run on-demand research\n"
-                            "/status — Active strategies\n"
-                            "/health — Market health check\n"
-                            "/help — This message"
+                            "/status — Posiciones abiertas + RSI actual\n"
+                            "/estrategias — Lista completa de estrategias activas\n"
+                            "/health — Salud del mercado (spread, volumen, funding)\n"
+                            "/test — Lanzar research on-demand\n"
+                            "/help — Este mensaje"
                         )
 
             except httpx.TimeoutException:
