@@ -87,7 +87,8 @@ class IBKRBroker(IBroker):
         if self._connected and self._ib and self._ib.isConnected():
             return
         try:
-            from ib_insync import IB
+            from ib_insync import IB, util
+            util.patchAsyncio()  # Allow ib_insync inside a running asyncio loop
             self._ib = IB()
             self._ib.connect(
                 self._host, self._port, clientId=self._client_id,
